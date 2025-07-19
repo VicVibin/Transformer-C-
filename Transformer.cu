@@ -17,7 +17,7 @@ void Reading(text string)
 int main() 
 {
     srand(static_cast<unsigned>(time(nullptr)));
-    str folderpath = "C:/Users/victo/Documents/Coding_Projects/DeepSeek/sherlock";
+    str folderpath = "Enter your folder path";
     GraphOperations go;
     Linear_Algebra lin;
     Math math;
