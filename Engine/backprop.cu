@@ -8,8 +8,8 @@ Math GraphOperations::math;
 
 Node::Node(str name) : op_name(std::move(name)) {}
 
-Parameter::Parameter(str name, const Matrix_d& value, float lr)
-    : Node(name), learning_rate(lr) {
+Parameter::Parameter(str name, const Matrix_d& value, float lr) : Node(name), learning_rate(lr) 
+{
     output = value;
     grad = Matrix_d(value.size(), vector_d(value[0].size(), 0.0f));
 }
@@ -75,7 +75,7 @@ graph_tree topological_sort(const graph& root)
 }
 
 graph GraphOperations::add(const graph& A, const graph& B)
-    {
+{
         auto node = std::make_shared<Node>("intermediate");
         node->inputs = {A, B};
         // Element-wise addition
@@ -108,8 +108,9 @@ graph GraphOperations::add(const graph& A, const graph& B)
         return node;
     }
   
-graph GraphOperations::LayerNorm(const graph &A)
-{
+
+    graph GraphOperations::LayerNorm(const graph &A)
+    {
     auto node = std::make_shared<Node>("intermediate");
     node->inputs = {A};
     node->output = lin.LayerNorm(A->output);

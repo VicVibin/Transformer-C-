@@ -8,7 +8,8 @@
 using str = std::string;
 using text = std::vector<std::string>;
 
-class TextProcessor {
+class TextProcessor 
+{
 public:
     str toLower(const str& string);                    // DECLARATION only
     str removePunctuation(const str& string);          // DECLARATION only
@@ -17,6 +18,5 @@ public:
     text getFilesInDirectory(const str& folderPath);   // DECLARATION only
     text readAllStories(const str& folderPath);        // DECLARATION only
     text cleanText(const text& lines);                 // DECLARATION only
-
 };
 
