@@ -177,14 +177,17 @@ Time elapsed for inference 8 times: 0.089s
 
 This implementation serves as an educational foundation for understanding Transformer architectures. Key areas for extension:
 - Gradient clipping and regularization
+- Batch gradient descent
 - Learning rate scheduling
 - Beam search decoding
 - Model checkpointing
 - Multi-GPU training
+- Efficient data transfer and management
+- KV caching for decoding
 
 ## License
  All usage and modifications should be made open source
 
 ---
 
-**Note**: This implementation prioritizes educational clarity over production efficiency. For deployment scenarios, consider established frameworks like PyTorch or TensorFlow.
+**Note**: This implementation prioritizes educational clarity over production efficiency. For deployment scenarios, I would suggest pointers instead of std::vectors for non dynamic matrices and vectors
