@@ -93,7 +93,7 @@ Matrix_d encoder_input(dictionary data, text story)
     return matrix;
 }
 
-void vec_replace(dictionary& data, text& story, const Matrix_d & update) 
+void vec_replace(dictionary data, text story, Matrix_d update) 
 {   
     for(int i = 0; i < story.size(); i++)
     {

@@ -32,10 +32,27 @@ AdamParameter::AdamParameter(str name, const Matrix_d& value, float lr)
 void AdamParameter::update() 
 {   
     ++t;
+    float scale = 0;
+    // Clip norm of gradients
+    for (size_t i = 0; i < output.size(); ++i) 
+    {
+        for (size_t j = 0; j < output[0].size(); ++j) 
+        {
+            scale += grad[i][j] * grad[i][j];
+        }
+    }
+    if (scale < 1)
+    {
+        scale = 1;
+    }
+    scale = math.sqrt(scale, 25);
+
     for (size_t i = 0; i < output.size(); ++i) {
         for (size_t j = 0; j < output[0].size(); ++j) 
-        {   m[i][j] = beta1 * m[i][j] + (1 - beta1) * grad[i][j];
-            v[i][j] = beta2 * v[i][j] + (1 - beta2) * grad[i][j] * grad[i][j];
+        {   
+            const float g = grad[i][j] / scale;
+            m[i][j] = beta1 * m[i][j] + (1 - beta1) * g;
+            v[i][j] = beta2 * v[i][j] + (1 - beta2) * g * g;
             const float m_hat = m[i][j] / (1 - math.power(beta1, t));
             const float v_hat = v[i][j] / (1 - math.power(beta2, t));
             output[i][j] -= learning_rate * m_hat / (math.sqrt(v_hat) + epsilon);
@@ -49,6 +66,7 @@ void AdamParameter::update()
         throw std::invalid_argument("Output index is nan \n");
     }
 }
+
 
 // Topological sort function declaration
 graph_tree topological_sort(const graph& root) 
