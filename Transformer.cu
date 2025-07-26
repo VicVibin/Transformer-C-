@@ -30,7 +30,7 @@ int main()
     int context_size = 32; // Size of the context window of inference
     int n = 128;  // Size of context window of training loop
     int embed = 128; // Size of vector embedding or d_model
-    int uniform = 1; // Size of uniform distribution [-uniform, uniform]
+    float uniform = 1; // Size of uniform distribution [-uniform, uniform]
     int topk = 5; // Size of topK inference probability, 1 is argmax
     int p_val = 256; 
     int t_val = 256;
