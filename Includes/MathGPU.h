@@ -29,7 +29,7 @@ __global__ void tkernel(const float *a, float *b, int m, int n);
 class Math
 {
 public:
-  vector_d random_vector(const int & size, int scale = 1);
+  vector_d random_vector(const int & size, float scale = 1.0);
   float sqrt(const float & x, int approx = 10);
   int random_int(const int&a , const int& b);
   float max(const vector_d &vector);

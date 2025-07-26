@@ -1195,7 +1195,7 @@ cudaStream_t Linear_Algebra_GPU::get_stream(int stream_id)
     return streams[stream_id]; 
 }
 
-vector_d Math::random_vector(const int& size, int scale)
+vector_d Math::random_vector(const int& size, float scale)
 {   
     vector_d result(size);
     // Use random device to seed the generator
