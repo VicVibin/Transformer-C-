@@ -72,6 +72,7 @@ auto W1 = std::make_shared<AdamParameter>("W1", lin.RandMatrix(embed, hidden, un
 auto b1 = std::make_shared<AdamParameter>("b1", lin.RandMatrix(1, hidden, uniform), 1e-3f);
 // ... additional parameters
 
+// Build_encoder, build decoder are function calls using the go class., Z1 = go.matmul(W1, input), go.add(Z1, ..), the forward function can be defined to your desired architecture
 // Training loop
 for(int epoch = 0; epoch < num_epochs; epoch++) {
     // Forward pass
