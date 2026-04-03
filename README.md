@@ -1,41 +1,48 @@
 # Transformer LLM from Scratch
 
-A complete implementation of a Transformer-based Large Language Model built from the ground up in C++, featuring GPU acceleration, custom automatic differentiation, and multi-head attention mechanisms.
+A partially complete implementation of a machine learning library that can be used to build almost any structure of DNN such as a transformer and a diffusion model. This codebase was built from the ground up in C++, with the use of GPU accelerated CUDA kernels for any parallelizable computation, with automatic differentiation from GraphOperations.
 
 ## Features
 
 - **Custom Backpropagation Engine**: Full computational graph with automatic differentiation
-- **GPU Acceleration**: CUDA-powered matrix operations with multi-stream processing
+- **GPU Acceleration**: CUDA-powered vector and matrix operations
 - **Transformer Architecture**: Complete encoder-decoder implementation with:
   - Multi-head self-attention
   - Cross-attention mechanisms
   - Layer normalization
   - Feed-forward networks
   - Positional encoding
-- **Advanced Optimizers**: Adam optimizer with momentum and bias correction
-- **Text Processing**: Built-in tokenization and word2vec embeddings
-- **Flexible Inference**: TopK sampling with configurable parameters
+
+- **Diffusion Architecture**: complete DDPM structure with:
+  - Time-step positional encoding
+  - U_NET architecture
+  - Langevin Sampling
+  - Convolutional Blocks, etc
+
+- **Advanced Optimizers**: Adam and AdamW optimizer with momentum and bias correction
+- **Text Processing**: Built-in tokenization and textual embeddings
+- **Image Processing** - Uses OpenCV library to convert images to vectors/matrices
+- **Flexible Inference**: TopK sampling with configurable parameters and KV Caching for improved attention efficiency (more    methods to come)
 
 ## Architecture Overview
 
 The implementation follows the standard Transformer architecture:
 
 ```
-Encoder: Input → Multi-Head Attention → Add & Norm → FFN → Add & Norm
+Encoder: Input → Attention → Add & Norm → FFN → Add & Norm
 Decoder: Input → Masked Self-Attention → Add & Norm → Cross-Attention → Add & Norm → FFN → Add & Norm → Linear → Softmax
 ```
 
 ## Core Components
 
 ### Computational Graph
-- **Node**: Base computation unit with forward/backward passes
-- **Parameter**: Trainable weights with gradient tracking
-- **AdamParameter**: Advanced optimizer with momentum and RMSprop
-- **GraphOperations**: Complete set of differentiable operations
+- **NodeBackProp**: Base computation unit with forward/backward passes
+- **AdamParameter**: Special Node with Advanced optimizer with momentum and RMSprop with added correction
+- **GraphOperations**: Complete set of differentiable operations stored in a graph
 
 ### Attention Mechanisms
-- **AttentionHead**: Single attention head with Q, K, V projections
-- **MultiHeadAttention**: Parallel multi-head processing with GPU streams
+- **Attention**: Single attention head with Q, K, V projections
+- **MultiHeadAttention**: Soon to be added MultiHead Attention with row-wise concatenation
 - **Cross-Attention**: Encoder-decoder attention for sequence-to-sequence tasks
 
 ## Quick Start
@@ -44,151 +51,309 @@ Decoder: Input → Masked Self-Attention → Add & Norm → Cross-Attention → 
 - CUDA-capable GPU
 - CUDA toolkit
 - C++17 compiler
-- Custom dependencies: `MathGPU`, `Linear_Algebra`, `Machine_Learning` libraries
+- Custom dependencies: `Dataloader`, `Engine`, `Debugging_utils`, `kernels` libraries
 
-### Basic Usage
+### Basic Usage for Transformer using graphOperations
 
 ```cpp
-#include "includes/backprop.h"
+#include "includes/engine.h"
+#include "includes/dataloader.h"
 
-// Initialize components
-GraphOperations go;
-Linear_Algebra lin;
-Math math;
-Machine_Learning ml;
 
-// Load and tokenize data
-text words = Load("path/to/dataset");
-text cleanedWords = read_words(words, 0, 50000);
-Tokenization T = tokenizer(cleanedWords, embed_size);
+class TransformerBlock
+{
+    private:
+    GraphOperations &go;
+    public:
+    const int embed_dim;
+    const int hidden;
+    Linear *q, *k, *v, *out;
+    const str type;
+    TransformerBlock(GraphOperations &go_ref, const int embed_dim, const int t_hidden): go(go_ref), 
+    embed_dim(embed_dim), type(type), hidden(t_hidden)
+    {
+        q = new Linear(go, embed_dim, t_hidden, "Transformer Q");
+        k = new Linear(go, embed_dim, t_hidden, "Transformer K");
+        v = new Linear(go, embed_dim, t_hidden, "Transformer V");
+        out = new Linear(go, t_hidden, embed_dim, "Transformer Output");
+    }
 
-// Create model components
-MultiHeadAttention mha_enc(8, embed_size);      // 8 heads, embedding dimension
-MultiHeadAttention mha_dec_self(8, embed_size);
-MultiHeadAttention mha_dec_cross(8, embed_size);
+    void save(std::ofstream& f) const
+    {
+        q->save(f);
+        k->save(f);
+        v->save(f);
+        out->save(f);
+    }
 
-// Define parameters
-auto W1 = std::make_shared<AdamParameter>("W1", lin.RandMatrix(embed, hidden, uniform), 1e-3f);
-auto b1 = std::make_shared<AdamParameter>("b1", lin.RandMatrix(1, hidden, uniform), 1e-3f);
-// ... additional parameters
-
-// Build_encoder, build decoder are function calls using the go class., Z1 = go.matmul(W1, input), go.add(Z1, ..), the forward function can be defined to your desired architecture
-// Training loop
-for(int epoch = 0; epoch < num_epochs; epoch++) {
-    // Forward pass
-    auto encoder_out = build_encoder(input, mha_enc, go, W1, b1, W2, b2);
-    auto decoder_out = build_decoder(target, encoder_out, mha_dec_self, mha_dec_cross, go, ...);
-    auto loss = go.SoftmaxCrossEntropy(decoder_out, target_labels);
-    
-    // Backward pass
-    go.backprop(loss);
-    
-    // Update parameters
-    for(auto& param : parameters) {
-        param->update();
+    void load(std::ifstream& f)
+    {
+        q->load(f);
+        k->load(f);
+        v->load(f);
+        out->load(f);
     }
     
-    // Clear computational graph
-    go.clear_graph(loss);
-}
+    graph forward(const graph&X, const bool mask = false)
+    {
+        auto Q = q->forward(X);
+        auto K = k->forward(X);
+        auto V = v->forward(X);
+        auto scores = go.BMMABT(Q, K);
+        auto scaled_scores = go.Scale(scores, 1.0f / sqrtf((float)(hidden)));
+        auto attn_weights = mask ? go.SOFTMASK(scaled_scores,1): go.SOFTMAX(scaled_scores,1);
+        auto attn_output = go.BMM(attn_weights, V);
+        auto output_node = out->forward(attn_output);
+        output_node->op_name = type + "Transformer Block Output";
+        auto skip = go.LayerNorm(go.Add(output_node, X));
+        return skip;
+    }
+
+    graph cross_forward(const graph& X, const graph& Y)
+    {
+        /*
+        @author Cross attention implementation, query from X, key and value from Y
+        */
+        auto Q = q->forward(X);
+        auto K = k->forward(Y);
+        auto V = v->forward(Y);
+        auto scores = go.BMMABT(Q, K);
+        auto scaled_scores = go.Scale(scores,1.0f/sqrtf((float)(embed_dim)));
+        auto attn_weights =  go.SOFTMASK(scaled_scores,1);
+        auto attn_output = go.BMM(attn_weights, V); 
+        auto output_node = out->forward(attn_output);
+        output_node->op_name = " Cross-Attention Transformer Block Output";
+        auto skip = go.LayerNorm(go.Add(output_node, X));
+        return skip;
+    }
+
+    graph cached_forward(const graph& X_new, KVCache&cache, const int start_idx, bool mask = true)
+    { 
+    auto K_new = k->forward(X_new);    
+    auto V_new = v->forward(X_new);
+
+    // Handling Cache Update ======== // Can add MemcpyAsync for SpeedUp;
+    K_new->forward();
+    V_new->forward();
+
+    int offset = cache.current_len * cache.hidden;
+    cudaMemcpy(cache.K+offset,K_new->output,cache.hidden*sizeof(float),cudaMemcpyDeviceToDevice);
+    cudaMemcpy(cache.V+offset,V_new->output,cache.hidden*sizeof(float),cudaMemcpyDeviceToDevice);
+    cache.current_len += K_new->dim[2];
+
+    K_new->clear();
+    V_new->clear();
+
+    graph K_full = std::make_shared<NodeBackProp>("KV_K",1,1,cache.current_len,cache.hidden,0);
+    graph V_full = std::make_shared<NodeBackProp>("KV_V",1,1,cache.current_len,cache.hidden,0);
+
+    K_full->output = cache.K;
+    V_full->output = cache.V;
+
+    // ============================= // 
+    auto pos    = go.MatrixPositionalEncoding(X_new, start_idx);
+    auto Q_new  = q->forward(pos);
+    auto scores = go.BMMABT(Q_new, K_full);
+    auto scaled  = go.Scale(scores, 1.0f / sqrtf((float)hidden));
+    auto weights = mask ? go.SOFTMASK(scaled, 1) : go.SOFTMAX(scaled, 1);
+    auto attn_out = go.BMM(weights, V_full);
+    auto output_node = out->forward(attn_out);
+    auto skip = go.LayerNorm(go.Add(output_node, X_new));
+    return skip;
+
+    }
+
+    graph cached_cross_forward(const graph& X_new, KVCache& cache)
+    {
+    auto Q_new = q->forward(X_new);   
+    graph K_full = std::make_shared<NodeBackProp>("KV_K",1,1,cache.current_len,cache.hidden,0);
+    graph V_full = std::make_shared<NodeBackProp>("KV_V",1,1,cache.current_len,cache.hidden,0);
+    K_full->output = cache.K;
+    V_full->output = cache.V;
+    auto scores = go.BMMABT(Q_new, K_full);
+    auto scaled  = go.Scale(scores, 1.0f / sqrtf((float)hidden));
+    auto weights = go.SOFTMASK(scaled, 1);
+    auto attn_out = go.BMM(weights, V_full);
+    auto output_node = out->forward(attn_out);
+    auto skip = go.LayerNorm(go.Add(output_node, X_new));
+    return skip;
+    }
+    
+};
+
 ```
 
-### Configuration Parameters
+### Basic Usage for Embedder 
 
-| Parameter | Description | Typical Range |
-|-----------|-------------|---------------|
-| `embed` | Embedding dimension (d_model) | 128-1024 |
-| `num_heads` | Number of attention heads | 4-16 |
-| `context_size` | Input sequence length | 32-512 |
-| `hidden_size` | FFN hidden dimension | 256-4096 |
-| `learning_rate` | Adam learning rate | 1e-4 to 1e-2 |
-| `topk` | Inference sampling parameter | 1-10 |
+```cpp
+#include "includes/engine.h"
+#include "includes/dataloader.h"
 
-## Training Process
+int main(){
+    const int MAX_VOCAB_SIZE = 25000; // Maximum vocabulary size of the embedder
+    const int MAX_BATCH_SIZE = 16; // Maximum batch size of the embedder
+    const int MAX_CONTEXT_LEN = 16384; // Maximum context length of the embedder
+    const int EMBED_DIM = 128; // Embedding dimension of the transformer model (n x d_model)
+    const int context_len = 32; // Context length used for training | <= MAX_CONTEXT_LEN
+    const int HIDDEN_DIM = 256; // Size of the hidden dimension as used by custom LLM implementation
 
-1. **Data Preparation**: Load text corpus and create tokenization mapping
-2. **Model Initialization**: Create multi-head attention layers and FFN parameters
-3. **Training Loop**:
-   - Sample random sequences from dataset
-   - Apply positional encoding
-   - Forward pass through encoder-decoder
-   - Compute cross-entropy loss
-   - Backpropagation through computational graph
-   - Parameter updates using Adam optimizer
-4. **Inference**: Generate text using TopK sampling
+    GraphOperations go; // Declare graph Operations class
+    TextualEmbedding embedder(EMBED_DIM,MAX_BATCH_SIZE, MAX_CONTEXT_LEN, MAX_VOCAB_SIZE); //Declare and initialize embedder
+    Text Db = LoadStory("text_training_data"); // Loads all the text data from folder
+    Text Database = read_words(Db, 0, Db.size());
+    embedder.updateVocabulary(Database); // Always call update vocabulary to add the vectorize the database
+    printf("Total Vocabulary Size: %i | Total Word Count: %i \n", embedder.Vocabulary.size(), Database.size());
+    // Assume you have a created class structure with training definition
+    LLM model(go, embedder, Database, MAX_BATCH_SIZE, context_len, HIDDEN_DIM);
+      
+    model.train(20000, 100);
+    model.generate({"so","sherlock", "holmes", "said"}, 30);
+}
+
+```
+
+
+### Basic Usage for Diffusion assuming Custom U-NET and Langevin Sampler 
+
+```cpp
+#include "includes/engine.h"
+#include "includes/dataloader.h"
+
+
+int main()
+{
+    GraphOperations go; // Declaring Graph Operations
+    const int T = 1000, init_depth = 64, t_hidden = 128, img_size = 64, epochs = 30000; // Initializing parameters
+    int t;
+
+    std::random_device rd;
+    std::mt19937 gen(std::random_device{}());
+    std::uniform_int_distribution<int> dist(0, T-1); // Initializing random t values for the diffusion model
+
+
+    auto base = Bi2n("image_training_data", 1, img_size, img_size); // Loads a batch of images and converts to a node 
+    StandardNorm(base); // Normalizes using (X/255 - 0.5) / 0.5
+    auto input  = go.like(base, "Input Image"), target = go.like(base,"Target Image"); // Creates node structures similar to base
+
+    U_NET model(go,input,target,nullptr,3,3,init_depth,t_hidden); // Custom built U-NET model, you would need to build your own
+    model.build_train(); // builds the computational graph
+
+    const bool sample_only = false;
+    if (!sample_only)
+    {
+    for(int epoch = 0; epoch < epochs; ++epoch)
+    {
+        model.t = t = dist(gen); 
+        prepare(base, input, target, t, T, ((uint64_t)rd() << 32) | rd());
+        /*Copies the base values to the input kernel, fills the target with gaussian noise and uses DDPM cosine scheduling algorithm to fill the input with the needed 
+        */
+        model.train();
+        if (epoch % 10 == 0) {printf("Epoch %i, Loss: %f at t = %i \n", epoch+1, model.loss, t);}
+    }
+    model.save("unet_model.bin");
+    go.clear_graph();
+    }
+    else
+    {
+        model.load("unet_model.bin");
+    }
+
+    
+    model.build_inference(input);
+    auto test = go.like(base, "Test Image");
+    Noise(test);
+    Sampling<U_NET> sampler(model, test, T-1,T);
+    sampler.loop(T-1, 1);
+    BPrintImage(test);
+    BPrintImage(base, 512, 512);
+    sampler.display(512,512);
+    return 0;
+}
+
+```
 
 ## Key Operations
 
-### Matrix Operations
-- `matmul()`: GPU-accelerated matrix multiplication with stream parallelization
-- `add()`: Element-wise addition with broadcasting support
-- `LayerNorm()`: Layer normalization with custom backward pass
-- `transpose()`: Matrix transposition
-- `concatenate()`: Multi-tensor concatenation
+### Embedding Operations
+- `updateVocabulary()`: Updates the vocabulary of the embedder
+- `encodeText()`: Encodes all texts of a given batch index saved in the internal keys
+- `rencodeText()`: Encodes only the last text of a given batch index and start saved in the internal keys (recursive inference)
+- `encodeBatch()`: Encodes a batch of texts
+- `forward()`: Pushes the embedding matrix into the output of the given shared ptr node 
+- `rforward`:  Pushes the embedding only the last vector of the embedding matrix into the output of the given shared ptr node 
+- `encodeText()`: Encodes all texts of a given batch index saved in the internal keys
+- `one_hot_forward()`: Pushes the embedding matrix of the one hot encoding of the embedded keys of the encoded texts
+- `EmbeddingUpdate()`: Encodes a batch of texts
 
 ### Activation Functions
-- `RelU()`: Rectified Linear Unit
-- `Softmax()`: Softmax activation
-- `SoftmaxCrossEntropy()`: Combined softmax and cross-entropy loss
+- `GraphOperations.RELU()->forward()`: Rectified Linear Unit
+- `GraphOperations.SILU()->forward()`: Sigmoid Linear Unit
+More will be added as needed since they are really easy to implement
 
-### Attention Operations
-- `compute()`: Self-attention computation
-- `compute_d()`: Cross-attention (decoder) computation
-- Stream-parallel execution across multiple attention heads
+### Special Graph Operation Function
+- `zero_grad()`: Zeros the gradient kernels of all nodes to avoid accumulation with
+- `forward()`: Forward passes the topologically sorted nodes.
+- `backward()`: Backward passes the topologically sorted nodes.
+- `ParameterUpdate()`: Updates the AdamParameters.
+- `accumulate()`: Accumulates the gradients for clipNorm.
+- `clipNorm()`: clipnorms based on accumulated gradients. call after accumulate()
+- `printParams()`: Prints the parameters of each AdamParameter.
+- `PrintNodes()`: Prints the names of each Node within the graph
+- `clear_graph()`: Clears the computational graph created.
+
+
+### Convolutional Operations
+- `Convolute2D->forward()->forward()`: Performs convolution using internals weights and biases that can be modified for specifics
+- `Convolute2DT->foward()->forward()`: Performs transposed convolutions with similar internals as Convolute2D
 
 ## Performance Optimizations
 
-- **GPU Streams**: Parallel attention head computation
-- **Memory Management**: Efficient graph clearing and memory reuse
-- **Asynchronous Execution**: Multi-threaded attention head processing
-- **Custom CUDA Kernels**: Optimized matrix operations
+- **GPU Streams**: Everything is preallocated on the GPU before computation and can easily flow through cuda
+- **Memory Management**: Efficient graph clearing and memory reuse in go.clear_graph();
+- **Asynchronous Execution**: Async optimizations soon to be added
+- **Custom CUDA Kernels**: Optimized all round operations
 
 ## Example Output
 
 ```
 Epoch: 1000
-Time taking for forward and backward pass: 0.234s
 Epoch 0 Loss: 2.45
-Beginning the inference
+Generating Text
 the quick brown fox jumps over the lazy dog and runs
 _____________________
-Time elapsed for inference 8 times: 0.089s
 ```
 
 ## Memory Requirements
 
-- **Model Parameters**: ~10-100MB depending on configuration
+- **Model Parameters**: depending on configuration
 - **GPU Memory**: 2-8GB recommended for training
-- **Dataset**: Flexible, processes text files of any size
+- **Dataset**: Flexible, processes text files of any size and images of any size and number
 
 ## Troubleshooting
 
 ### Common Issues
-- **CUDA Out of Memory**: Reduce batch size or sequence length
-- **NaN Values**: Lower learning rate or add gradient clipping
-- **Slow Training**: Ensure GPU streams are properly utilized
+- **CUDA Out of Memory**: SafeCudaMalloc catches an error 
+- **No actual training**: If custom graph are built always call go.nodes = topological_sort(last_node), then train or else no graph will be built
+- **Slow Training**: Working on it, the LLM is on par with pytorch with speed but Error checking and synchronizations everywhere is slowing down training for Convolutional Kernels
 
 ### Debug Features
-- Parameter gradient monitoring
-- Loss tracking and validation
-- Memory usage reporting
-- Stream synchronization verification
+- Can check memory before and after clearing graph to find leaks
+- Custom input parameters for weight initialization, gradient normalization and other factors in the header of debug.h
 
 ## Contributing
 
-This implementation serves as an educational foundation for understanding Transformer architectures. Key areas for extension:
-- Gradient clipping and regularization
-- Batch gradient descent
+This implementation serves as an educational foundation for understanding how machine learning works under the hood and removing the black box, hidden nature of LLMs, Diffusion models, and other state of the art architectures. This learning experience shows that machine learning is not as complicated as it seems but requires understanding of data structures, mathematical operations and their derivatives and high performance computing. 
+Key areas for extension:
 - Learning rate scheduling
-- Beam search decoding
-- Model checkpointing
 - Multi-GPU training
-- Efficient data transfer and management
-- KV caching for decoding
+- Cuda Streams for parallel data transfers and executions for independent kernels
+- EmbeddingUpdate fixing to update vocabulary by differentiating keys for update
+- Faster kernels and improved cache hits
+- Better memory management and destructor for out of use allocations
 
 ## License
  All usage and modifications should be made open source
 
 ---
 
-**Note**: This implementation prioritizes educational clarity over production efficiency. For deployment scenarios, I would suggest pointers instead of std::vectors for non dynamic matrices and vectors
+**Note**: This implementation prioritizes educational clarity over production efficiency, though still highly efficient in some areas.
