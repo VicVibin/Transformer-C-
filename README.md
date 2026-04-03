@@ -333,7 +333,7 @@ _____________________
 
 ### Common Issues
 - **CUDA Out of Memory**: SafeCudaMalloc catches an error 
-- **No actual training**: If custom graph are built always call go.nodes = topological_sort(last_node), then train or else no graph will be built
+- **No actual training**: If custom graph are built always call go.nodes = topological_sort(last_node), then train or else no the graph built will not be tracked
 - **Slow Training**: Working on it, the LLM is on par with pytorch with speed but Error checking and synchronizations everywhere is slowing down training for Convolutional Kernels
 
 ### Debug Features
