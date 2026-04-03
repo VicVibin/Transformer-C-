@@ -288,7 +288,7 @@ int main()
 ### Activation Functions
 - `GraphOperations.RELU()->forward()`: Rectified Linear Unit
 - `GraphOperations.SILU()->forward()`: Sigmoid Linear Unit
-More will be added as needed since they are really easy to implement
+- More will be added as needed since they are really easy to implement
 
 ### Special Graph Operation Function
 - `zero_grad()`: Zeros the gradient kernels of all nodes to avoid accumulation with
