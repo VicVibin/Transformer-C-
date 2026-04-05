@@ -3,6 +3,7 @@
 #include <utility>
 #include <string>
 #include <random>
+#include <unordered_set>
 
 #define BLOCK_SIZE 32
 #define THREADSPERBLOCK 1024
@@ -32,6 +33,8 @@ __device__ double atomicAddDouble(double* __restrict__ address, double val);
 __device__ inline void atomicMaxFloat(float* __restrict__  addr, float value);
 
 __device__ inline void atomicMinFloat(float* __restrict__ addr, float value);
+
+__device__ __forceinline__ double warpReduceSum(double val, int offset = 16);
 
 __device__ int ceil_div(const int a, const int b);
 
@@ -104,20 +107,27 @@ __global__ void InstanceBackward(float* __restrict__ igrad, const float* __restr
 
 __global__ void Standard_Weights(float* __restrict__ w, const long long size, const float scale, const uint64_t seed);
 
-__global__ void CV2D(float* __restrict__ X, float* __restrict__ K, float* __restrict__ bias, float* __restrict__ Y, int N, int Cout, int Cin, int H, int W, int KH, int KW, int pad=0, int stride=1, int backward=0);
+__global__ void CV2D(const float* __restrict__ X, const float* __restrict__ K, const float* __restrict__ bias, float* __restrict__ Y, 
+                     const int N, const int Cout, const int Cin, const int H, const int W, const int KH=3, const int KW=3, const int pad=0, const int stride=1);
 
-__global__ void CV3D(float* __restrict__ X, float* __restrict__ K, float* __restrict__ bias, float* __restrict__ Y, int N, int Cout, int Cin, int H, int W, int KH, int KW, int pad=0, int stride=1, int backward=0);
+__global__ void GV2D(const float* __restrict__ X, const float* __restrict__ dZ, float* __restrict__ dK, const int batch, 
+                     const int out,const int in,const int a,const int b,const int c,const int d,const int pad,const int stride);
 
-__global__ void GV2D(float* __restrict__ X, float* __restrict__ dZ, float* __restrict__ dK, int batch, int out, int in,  int a,int b,int c,int d,int pad=0, int stride=1);
+__global__ void CV2D_GradInput(const float* __restrict__ dY,const float* __restrict__ K, float* __restrict__ dX,
+                               const int batch, const int out, const int inp, const int a, const int b,const int c,
+                               const int d, const int outR, const int outC, const int pad,  const int stride);
 
-__global__ void CVT2D_Forward(const float* __restrict__ input, const float* __restrict__  weights, const float* __restrict__  bias, float* __restrict__  output, int batch, int out_channels, 
-                              int inp_channels,  int inp_h, int inp_w, int kernel_h, int kernel_w, int pad, int stride);
+__global__ void CVT2D(const float* __restrict__ input, const float* __restrict__ weights, const float* __restrict__ bias, 
+                      float* __restrict__ output, const int batch, const int out_channels,  const int inp_channels,  
+                      const int inp_h, const int inp_w, const int kernel_h, const int kernel_w, const int pad, const int stride);
 
-__global__ void CVT2D_GradWeights(const float* __restrict__ input, const float* __restrict__  grad_output, float* __restrict__ grad_weights, int batch, int out_channels, 
-                                  int inp_channels, int inp_h, int inp_w, int kernel_h, int kernel_w, int pad, int stride);
+__global__ void GVT2D(const float* __restrict__ input,const float* __restrict__ grad_output,float* __restrict__ grad_weights,
+                      const int batch, const int out_channels, const int inp_channels,const int inp_h, const int inp_w,
+                      const int kernel_h, const int kernel_w,const int pad, const int stride);
 
-__global__ void CVT2D_GradInput(const float* __restrict__  grad_output, const float* __restrict__ weights, float* __restrict__ grad_input, int batch, int out_channels, 
-                                int inp_channels, int inp_h, int inp_w, int kernel_h, int kernel_w, int pad, int stride);
+__global__ void CVT2D_GradInput(const float* __restrict__ grad_output, const float* __restrict__ weights, float* __restrict__ grad_input, 
+                                const int batch, const  int out_channels, const int inp_channels, const int inp_h, const int inp_w, 
+                                const int kernel_h, const int kernel_w, const int pad, const int stride);
 
 __global__ void ReLU(const float* __restrict__ input, float* __restrict__ output, const int total_size);
 
@@ -134,6 +144,15 @@ __global__ void deriv_SiLU(const float* __restrict__ input, const float* __restr
 __global__ void CConcatenate(const float* __restrict__ A, const float* __restrict__ B, float* __restrict__ C, const int batch, const int channel, const int row, const int c1, const int c2);
 
 __global__ void CSplit(float* __restrict__ A, float* __restrict__ B, const float* __restrict__ C, const int batch, const int channel, const int row, const int c1, const int c2);
+
+__global__ void VConcatenate(const float* __restrict__ A, float* __restrict__ B, const int batch, const int channel,
+                             const int row, const int a_col, const int total_col, const int col_offset);
+
+__global__ void VSplit(const float* __restrict__ dB, float* __restrict__ dA, const int batch, const int channel,
+                       const int row, const int a_col, const int total_col, const int col_offset);
+
+__global__ void transpose(const float* __restrict__ X, float* __restrict__ output, const int batch_size, const int channels, 
+                          const int row, const int col, const int grad = 0);
 
 __global__ void CopynCrop(const float* __restrict__ X, float* __restrict__ Y, const int batch_size, const int depth, const int a, const int b, const int c, const int d);
 
@@ -275,7 +294,8 @@ __global__ void ISNAN(const float* __restrict__ X, const long long total);
 
 __global__ void GatherEmbeddings(float* __restrict__ output,const float* __restrict__ EmbedSpace,const int* __restrict__ keys, int c, int max_c, const int embed_dim, const long long total);
 
-__global__ void PadOutput(float* __restrict__ input, float* __restrict__ output, int batch, int channels, int inH, int inW, int outH, int outW,int padTop, int padLeft);
+__global__ void PadOutput(const float* __restrict__ input, float* __restrict__ output, const int batch, const int channels, 
+                          const int inH, const int inW, const int outH, const int outW, const int padTop, const int padLeft);
 
 template <typename T1, typename T2>
 void ScaleValue(T1*  __restrict__ X, const T2 scale, const long long total, const int type = 0)

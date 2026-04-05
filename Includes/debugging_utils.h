@@ -2,6 +2,8 @@
 #include <curand_kernel.h>
 #include <iostream>
 #include <chrono>
+#include <fstream>
+#include <sstream>
 #include <string>
 #include <windows.h>
 #include <vector>
@@ -9,7 +11,7 @@
 using str = std::string;
 using Text = std::vector<str>;
 
-#define XAVIER 2.0f
+#define XAVIER 6.0f
 #define ADAMW true
 #define NORM 1.0f
 #define LEARNING_RATE 1e-3f

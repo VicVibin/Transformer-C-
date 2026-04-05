@@ -1,16 +1,5 @@
-#include <iostream>
-#include <fstream>
-#include <sstream>
-#include <unordered_map>
-#include <algorithm>
-#include <cctype>
-#include "includes/DataLoader.h"
-#ifdef _WIN32
-    #include <windows.h>
-#else
-    #include <dirent.h>
-    #include <sys/stat.h>
-#endif
+#include "includes/dataloader.h"
+
 
 str TextProcessor::toLower(const str& string) 
 {   
@@ -36,8 +25,8 @@ bool TextProcessor::isAlpha(const str& word) {
     return std::all_of(word.begin(), word.end(), ::isalpha);
 }
 
-text TextProcessor::tokenize(const str& line) {
-    text tokens;
+Text TextProcessor::tokenize(const str& line) {
+    Text tokens;
     std::istringstream iss(line);
     str word;
     while (iss >> word) {
@@ -46,8 +35,8 @@ text TextProcessor::tokenize(const str& line) {
     return tokens;
 }
 
-text TextProcessor::getFilesInDirectory(const str& folderPath) {
-    text filenames;
+Text TextProcessor::getFilesInDirectory(const str& folderPath) {
+    Text filenames;
     str searchPath = folderPath + "\\*";
     WIN32_FIND_DATAA findFileData;
     HANDLE hFind = FindFirstFileA(searchPath.c_str(), &findFileData);
@@ -62,9 +51,9 @@ text TextProcessor::getFilesInDirectory(const str& folderPath) {
     return filenames;
 }
 
-text TextProcessor::readAllStories(const str& folderPath) {
-    text allLines;
-    text filenames = getFilesInDirectory(folderPath);
+Text TextProcessor::readAllStories(const str& folderPath) {
+    Text allLines;
+    Text filenames = getFilesInDirectory(folderPath);
     if (filenames.empty()) {
         std::cerr << "No files found in directory: " << folderPath << std::endl;
         return allLines;
@@ -91,12 +80,12 @@ text TextProcessor::readAllStories(const str& folderPath) {
     return allLines;
 }
 
-text TextProcessor::cleanText(const text& lines) {
-    text cleanedWords;
+Text TextProcessor::cleanText(const Text& lines) {
+    Text cleanedWords;
     for (const str& line : lines) {
         str lowerLine = toLower(line);
         str cleanLine = removePunctuation(lowerLine);
-        text tokens = tokenize(cleanLine);
+        Text tokens = tokenize(cleanLine);
         for (const str& word : tokens) {
             if (isAlpha(word)) {
                 cleanedWords.push_back(word);
@@ -106,3 +95,27 @@ text TextProcessor::cleanText(const text& lines) {
     return cleanedWords;
 }
 
+Text LoadStory(const str& path)
+{
+    TextProcessor processor;
+    Text data = processor.readAllStories(path);
+    Text cleanedWords = processor.cleanText(data);
+    return cleanedWords;
+}
+
+void Reading(Text string)
+{
+    for (const auto & word: string){std::cout << word << "\t";}
+        std::cout << "\n";
+        std::cout << "_____________________ \n";
+}
+
+Text read_words(Text words, const int start, const int end)
+{
+    Text selectedWords;
+    for (int i = start; i < end && i < words.size(); ++i)
+    {
+        selectedWords.push_back(words[i]);
+    }
+    return selectedWords;
+}

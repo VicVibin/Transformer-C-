@@ -1,22 +1,19 @@
 #pragma once
 #include "debugging_utils.h"
 #include "kernels.h"
-
-/*
-#include <cudnn.h> 
-*/
-
-#include <functional>
-#include <memory>
-#include <algorithm>
-#include <unordered_set>
-#include <fstream>
 #include <opencv2/opencv.hpp>
 
 struct NodeBackProp;
 using graph = std::shared_ptr<NodeBackProp>;
 using graph_tree = std::vector<graph>;
 using BatchText = std::vector<Text>;
+
+struct BatchTexts
+{
+    BatchText encoder;
+    BatchText decoder;
+    BatchText target;
+};
 
 void isNan(const str name, const float* X, const long long total);
 
@@ -54,7 +51,21 @@ struct Ipointer
     Text labels;
 };
 
+struct KVCache 
+{
+    float* K;   // [max_len, hidden]
+    float* V;   // [max_len, hidden]
+    int current_len = 0;
+    int max_len;
+    int hidden;
+    KVCache(int max_len, int hidden);
+    void free();
+};
+
+
+
 Ipointer i2p(const std::string& filepath, int row_size = 0, int col_size = 0);
+
 cv::Mat p2i(Ipointer X);
 graph i2n(std::string filepath, int row_size = 0, int col_size = 0);
 cv::Mat n2i(const graph X);
@@ -139,6 +150,27 @@ public:
     void EmbeddingUpdate(const graph&X);
 };
 
+class DataLoading
+{
+private:
+    TextualEmbedding& embedder;
+    const Text& Database;
+    const int batch_size;
+    const int context_len;
+    std::mt19937 gen;
+    std::uniform_int_distribution<int> dist;
+    std::unordered_set<int> used_indices; 
+    const str START_TOKEN = "<START>";
+    const str END_TOKEN = "<END>";
+    const str PAD_TOKEN = "<PAD>";
+    const str UNK_TOKEN = "<UNK>";
+
+public:
+    DataLoading(TextualEmbedding& embed_ref, const Text& db, const int batch, const int context);
+    BatchTexts load_data();
+    graph forward(const BatchTexts& dataset, const str type = "E");
+};
+
 class GraphOperations{
 public:
     graph_tree nodes;
@@ -146,6 +178,7 @@ public:
     float loss;
     graph like(const graph& X, const str name = "");
     graph Last(const graph& X);
+    graph GraphOperations::Transpose(const graph& X);
     graph PositionalEncoding(const int &t, const int d_model);
     graph MatrixPositionalEncoding(const graph& X, const int start_idx = 0);
     graph Broadcast_Add(const graph& A, const graph& B);
@@ -167,6 +200,7 @@ public:
     graph LeakyRELU(const graph& input);
     graph CopyCrop(const graph& input1, const graph& input2);
     graph CopyConcat(const graph& input1, const graph& input2);
+    graph GraphOperations::VecConcat(const graph_tree& inputs);
     graph LayerNorm(const graph& X);
     graph BatchNorm(const graph& X);
     graph GroupNorm(const graph& X, const int group=8);
@@ -330,6 +364,53 @@ public:
     void load(std::ifstream& f);
     graph forward(const graph& X_in, const graph& Context);
 
+};
+
+class TimeMLPBlock
+{
+
+public:
+    GraphOperations &go;
+    Linear *L0, *L1;
+    TimeMLPBlock(GraphOperations &go_ref, const int t_embed_dim, const int t_hidden);
+    graph forward(const graph & X);
+    void save(std::ofstream& f) const;
+    void load(std::ifstream& f);
+};
+
+class SingleHeadAttention
+{
+private:
+    GraphOperations &go;
+public:
+    const int embed_dim;
+    const int hidden;
+    Linear *q, *k, *v, *out;
+    const str type;
+    SingleHeadAttention(GraphOperations &go_ref, const int embed_dim, const int t_hidden);
+    void save(std::ofstream& f) const;
+    void load(std::ifstream& f);
+    graph forward(const graph&X, const bool mask = false);
+    graph cross_forward(const graph& X, const graph& Y);
+    graph cached_forward(const graph& X_new, KVCache&cache, const int start_idx, bool mask = true);
+    graph cached_cross_forward(const graph& X_new, KVCache& cache);
+    
+};
+
+class Attention
+{
+private:
+    GraphOperations &go;
+public:
+    const int embed_dim;
+    const int hidden;
+    Linear *q, *k, *v;
+    const str type;
+    Attention(GraphOperations &go_ref, const int embed_dim, const int t_hidden);
+    void save(std::ofstream& f) const;
+    void load(std::ifstream& f);
+    graph forward(const graph&X, const bool mask = false);
+    graph cross_forward(const graph& X, const graph& Y);
 };
 
 void diffuse(float* input, float* model, float* theta, const long long total, const int t, const int T, const double s, const uint64_t seed);

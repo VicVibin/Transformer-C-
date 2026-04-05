@@ -8,8 +8,8 @@ void Timing::start(){beg = std::chrono::high_resolution_clock::now();}
 
 void Timing::end()
 {   ending = std::chrono::high_resolution_clock::now();
-    std::chrono::duration<float> elapsed = ending - beg;
-    std::cout << "Time elapsed for " << function << ": " << elapsed.count() << "s \n";
+    auto duration = std::chrono::duration<double, std::milli>(ending - beg);
+    std::cout << "Time elapsed for " << function << ": " << duration.count() << "ms \n";
 }
 
 Text ImagePaths(const std::string& folder, const int filenums ) 
