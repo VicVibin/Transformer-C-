@@ -8,14 +8,16 @@ using graph = std::shared_ptr<NodeBackProp>;
 using graph_tree = std::vector<graph>;
 using BatchText = std::vector<Text>;
 
+void isNan(const str name, const float* X, const long long total);
+
+void diffuse(float* input, float* model, float* theta, const long long total, const int t, const int T, const double s, const uint64_t seed);
+
 struct BatchTexts
 {
     BatchText encoder;
     BatchText decoder;
     BatchText target;
 };
-
-void isNan(const str name, const float* X, const long long total);
 
 struct NodeBackProp 
 {
@@ -62,10 +64,7 @@ struct KVCache
     void free();
 };
 
-
-
 Ipointer i2p(const std::string& filepath, int row_size = 0, int col_size = 0);
-
 cv::Mat p2i(Ipointer X);
 graph i2n(std::string filepath, int row_size = 0, int col_size = 0);
 cv::Mat n2i(const graph X);
@@ -126,7 +125,9 @@ public:
     4.) max_vocab_size: maximum vocabulary size (number of unique words in the vocabulary
     */
     float* EmbedSpace;      // GPU embedding memory space [MAX_VOCAB_SIZE x embed_dim]
-    int* keys;              // GPU word index mapping to the embedding: [MAX_BATCH_SIZE x MAX_CONTEXT_LEN], changes each epoch
+    int* encoder_keys;              // GPU word index mapping to the embedding: [MAX_BATCH_SIZE x MAX_CONTEXT_LEN], changes each epoch
+    int* decoder_keys;
+    int* target_keys;
     Text input_text;        // Current input text batch
     std::unordered_map<str, int> WordSpace; // CPU word to key mapping
     std::unordered_map<int, str> KeySpace; // CPU key to word mapping
@@ -141,13 +142,13 @@ public:
     TextualEmbedding(const int embed_dim, const int batch_size=128, const int max_c_len=64, const int max_vocab_size=10000);
     ~TextualEmbedding();
     void updateVocabulary(const Text& texts);
-    void encodeText(const Text& texts, const int batch_idx = 0);
-    void rencodeText(const Text& texts, const int batch_idx = 0, const int start_idx = 0);
-    void encodeBatch(const BatchText& batch_texts);
-    void forward(const graph& X);
-    void rforward(const graph&X, const int start_idx = 0);
+    void encodeText(const Text& texts, const str key, const int batch_idx = 0);
+    void rencodeText(const Text& texts,const str key, const int batch_idx = 0, const int start_idx = 0);
+    void encodeBatch(const BatchText&  batch_texts, const str key);
+    void forward(const graph& X, const str key);
+    void rforward(const graph&X, const str key, const int start_idx = 0);
     void one_hot_forward(const graph&X);
-    void EmbeddingUpdate(const graph&X);
+    void EmbeddingUpdate(const graph&X, const str key);
 };
 
 class DataLoading
@@ -175,6 +176,7 @@ class GraphOperations{
 public:
     graph_tree nodes;
     double GB = 0;
+    bool calculate_loss = false;
     float loss;
     graph like(const graph& X, const str name = "");
     graph Last(const graph& X);
@@ -200,7 +202,7 @@ public:
     graph LeakyRELU(const graph& input);
     graph CopyCrop(const graph& input1, const graph& input2);
     graph CopyConcat(const graph& input1, const graph& input2);
-    graph GraphOperations::VecConcat(const graph_tree& inputs);
+    graph VecConcat(const graph_tree& inputs);
     graph LayerNorm(const graph& X);
     graph BatchNorm(const graph& X);
     graph GroupNorm(const graph& X, const int group=8);
@@ -238,55 +240,6 @@ public:
     void save(std::ofstream& f) const;
     void load(std::ifstream& f);
 };
-
-/*
-struct ConvCache {
-    int n = -1, c = -1, h = -1, w = -1;
-    cudnnConvolutionFwdAlgo_t fwd_algo;
-    cudnnConvolutionBwdDataAlgo_t bwd_data_algo;
-    cudnnConvolutionBwdFilterAlgo_t bwd_filter_algo;
-    size_t workspace_size = 0;
-};
-*/
-
-/*
-class Conv2D {
-private:
-    GraphOperations& go;
-    int out, inp, c, d, pad, stride;
-    str name;
-    AdamParameter *weights, *bias;
-
-
-     * @brief For standard convolution call C2D (go, inp, out);
-     * @param name go: GraphOperations reference
-     * @param Input: number of input channels
-     * @param Output: number of output channels
-     * @param C: kernel size row: (default 3)
-     * @param D: kernel size col: (default 3)
-     * @param stride: stride size (default 1)
-     * @param padding: padding size (default 1)
-     * @param param: Name of the operation (default "" )
-
-    // cuDNN Resources
-    cudnnHandle_t cudnn;
-    cudnnTensorDescriptor_t x_desc, y_desc, bias_desc;
-    cudnnFilterDescriptor_t w_desc;
-    cudnnConvolutionDescriptor_t conv_desc;
-    
-    // Caching and Workspace
-    ConvCache cache;
-    float* d_workspace = nullptr;
-    void ValidateCache(int n, int c_in, int h, int w);
-
-public:
-    Conv2D(GraphOperations& go_ref, int Input, int Output, int C, int D, int stride, int padding, str name);
-    ~Conv2D();
-    graph forward(const graph& X);
-};
-
-*/
-
 
 class Convolute2D {
 private:
@@ -396,23 +349,5 @@ public:
     graph cached_cross_forward(const graph& X_new, KVCache& cache);
     
 };
-
-class Attention
-{
-private:
-    GraphOperations &go;
-public:
-    const int embed_dim;
-    const int hidden;
-    Linear *q, *k, *v;
-    const str type;
-    Attention(GraphOperations &go_ref, const int embed_dim, const int t_hidden);
-    void save(std::ofstream& f) const;
-    void load(std::ifstream& f);
-    graph forward(const graph&X, const bool mask = false);
-    graph cross_forward(const graph& X, const graph& Y);
-};
-
-void diffuse(float* input, float* model, float* theta, const long long total, const int t, const int T, const double s, const uint64_t seed);
 
 void Noise(const graph & input);

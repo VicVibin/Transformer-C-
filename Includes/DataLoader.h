@@ -21,13 +21,13 @@ using Text = std::vector<std::string>;
 
 class TextProcessor {
 public:
-    str toLower(const str& string);                   
-    str removePunctuation(const str& string);        
-    bool isAlpha(const str& word);                 
-    Text tokenize(const str& line);                    
-    Text getFilesInDirectory(const str& folderPath);  
-    Text readAllStories(const str& folderPath);      
-    Text cleanText(const Text& lines);                
+    str toLower(const str& string);                    // DECLARATION only
+    str removePunctuation(const str& string);          // DECLARATION only
+    bool isAlpha(const str& word);                     // DECLARATION only
+    Text tokenize(const str& line);                    // DECLARATION only
+    Text getFilesInDirectory(const str& folderPath);   // DECLARATION only
+    Text readAllStories(const str& folderPath);        // DECLARATION only
+    Text cleanText(const Text& lines);                 // DECLARATION only
 
 };
 

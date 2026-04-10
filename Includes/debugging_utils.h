@@ -14,7 +14,7 @@ using Text = std::vector<str>;
 #define XAVIER 6.0f
 #define ADAMW true
 #define NORM 1.0f
-#define LEARNING_RATE 1e-3f
+#define LEARNING_RATE 1e-4f
 #define SHOULDNORM false
 
 template <typename T>

@@ -444,11 +444,10 @@ __global__ void InstanceMean(const float* __restrict__ data, double* __restrict_
     } 
 }
 
-
 __global__ void LayerStd(const float* __restrict__ data, const double* __restrict__ mean, double* __restrict__ std,
                          const int batch, const int channels, const int row, const int col)
 {
-    extern __shared__ double smem[];
+    __shared__ double smem[THREADSPERBLOCK];
 
     const int batch_idx  = blockIdx.x;
     const int out_size   = row * col;
@@ -628,7 +627,6 @@ __global__ void INorm(float* __restrict__ data, const double* __restrict__ mean,
     data[global_idx] = gamma*((data[global_idx] - mean[batch_idx*channels+channel_idx]) 
                        / sqrtf((1.0f/out_size)*std[batch_idx*channels+channel_idx] + epsilon)) + beta;
 }
-
 
 
 __global__ void LayerBackward(float* __restrict__ igrad, const float* __restrict__ node, const float* __restrict__ ngrad, 

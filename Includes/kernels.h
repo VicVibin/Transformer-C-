@@ -6,7 +6,7 @@
 #include <unordered_set>
 
 #define BLOCK_SIZE 32
-#define THREADSPERBLOCK 1024
+#define THREADSPERBLOCK 512
 #define PIBY2 1.57079632679
 #define PI 3.14159
 using str = std::string;
