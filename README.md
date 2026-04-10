@@ -1,4 +1,4 @@
-# Transformer LLM from Scratch
+# ML Library from Scratch
 
 A partially complete implementation of a machine learning library that can be used to build almost any structure of DNN such as a transformer and a diffusion model. This codebase was built from the ground up in C++, with the use of GPU accelerated CUDA kernels for any parallelizable computation, with automatic differentiation from GraphOperations.
 
